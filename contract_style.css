@@ -2,8 +2,8 @@
 :root{
   --bg:#f6f6f6; --kaart:#ffffff; --rand:#d9d9d9; --prim:#2F6FEB;
   --ok:#2e7d32; --ok-soft:#66bb6a; --bezig:#ff9800; --tekst:#222; --sticky:#f0f4fa;
-  --row1-h: 64px;   /* bovenste koprij */
-  --row2-h: 104px;  /* pictogramrij */
+  --row1-h: 64px;   /* bovenste koprij (selects) */
+  --row2-h: 104px;  /* pictogrammenrij */
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -130,6 +130,11 @@ thead th.sticky-left{z-index:8}
 .kleur-btn.oranje{background:var(--bezig)}
 .kleur-btn.groen{background:var(--ok-soft)}
 .kleur-btn:focus{outline:3px solid #cfe1ff}
+
+/* Kindmodus: alleen pictogrammenkop */
+body.kind-only-icons{ --row1-h:0px; }
+body.kind-only-icons .sticky-top{ display:none; }
+body.kind-only-icons .sticky-top-2{ top:0; }
 
 /* Kindmodus: rode sluitknop */
 .kind-exit{
