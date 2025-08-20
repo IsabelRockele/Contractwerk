@@ -1,19 +1,12 @@
-// contract_script.js — Contractwerkbord
-// Verbeteringen:
-// - Kop-rijen sticky met vaste hoogtes (geen “overschuiven” effect)
-// - Leerkrachtknop “Kindmodus” (opent kindweergave in nieuw tabblad)
-// - Kindmodus: rode sluitknop (wit kruisje) → terug naar contract_index.html
-// - Status: wit/oranje/groen met 3 kleurvlakken; klik bolletje = cyclen; long-press = reset wit
-// - Optimistic UI (kleurt meteen), daarna Firestore-opslag
+// contract_script.js — Bordpagina
+// - Leerkracht ingelogd verplicht (geen browserprompts); anders terug naar start.
+// - Kindmodus: anoniem; UID van leerkracht in ?lid=… (uit QR / localStorage).
+// - Sticky kop (2 rijen), kleurenstatus wit/oranje/groen + long-press=reset.
+// - Leerlingfoto per klasnummer uit: contract_afbeeldingen/<UID>/01.png (fallback naar contract_afbeeldingen/01.png).
 
-// ==== Firebase ====
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import {
-  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, signInAnonymously
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import {
-  getFirestore, doc, getDoc, setDoc, updateDoc
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA7KxXMvZ4dzBQDut3CMyWUblLte2tFzoQ",
@@ -27,9 +20,10 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ==== UI Refs ====
 const params = new URLSearchParams(location.search);
 const rol = params.get('rol') || 'kind';
+
+// UI refs
 const actiesLeerkracht = document.getElementById('actiesLeerkracht');
 const btnKolomPlus = document.getElementById('btnKolomPlus');
 const btnRijPlus = document.getElementById('btnRijPlus');
@@ -41,7 +35,6 @@ const headerRij = document.getElementById('headerRij');
 const headerAfbeeldingen = document.getElementById('headerAfbeeldingen');
 const bodyRijen = document.getElementById('bodyRijen');
 
-// ==== Activiteiten (eerste = leeg) ====
 const activiteiten = [
   { key: null, label: "—" },
   { key: "rekenen", label: "Rekenen" },
@@ -59,16 +52,18 @@ const activiteiten = [
 const MAX_INIT_RIJ = 25;
 const INIT_KOLOMMEN = 6;
 
-// ==== Borddata ====
-let gebruikerId = null;
+let gebruikerId = null;      // UID van de leerkracht
 const bordDocId = "contractbord";
 let bord = { kolommen: [], rijen: [], cellen: {} };
 
-// ==== Helpers ====
+// Helpers
 function transparentDataURL(){
   return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGMAAQAABQABJ4nYbQAAAABJRU5ErkJggg==";
 }
 function imageSrcFor(key){ return key ? `contract_afbeeldingen/${key}.png` : transparentDataURL(); }
+function leerlingPrimairPad(nr){ return `contract_afbeeldingen/${gebruikerId}/${String(nr).padStart(2,'0')}.png`; }
+function leerlingFallbackPad(nr){ return `contract_afbeeldingen/${String(nr).padStart(2,'0')}.png`; }
+
 function ensureMinimumStructure(){
   if(!Array.isArray(bord.kolommen)) bord.kolommen = [];
   if(bord.kolommen.length < INIT_KOLOMMEN){
@@ -88,12 +83,10 @@ function applyDefaultBoard(){
   bord.cellen = {};
 }
 
-// ==== AUTH ====
+// AUTH
 async function initAuth(){
   if(rol === 'leerkracht'){
     actiesLeerkracht.hidden = false;
-
-    // Voeg "Kindmodus" knop toe (nieuw tabblad)
     const kindBtn = document.createElement('button');
     kindBtn.className = 'sec';
     kindBtn.textContent = 'Kindmodus';
@@ -101,61 +94,39 @@ async function initAuth(){
     actiesLeerkracht?.insertBefore(kindBtn, btnUitloggen);
 
     onAuthStateChanged(auth, async (user)=>{
-      if(!user){
-        const email = prompt('E-mail (leerkracht):');
-        const wachtwoord = prompt('Wachtwoord:');
-        if(!email || !wachtwoord) return alert('Inloggen vereist.');
-        await signInWithEmailAndPassword(auth, email, wachtwoord).catch(e=>alert(e.message));
-        return;
-      }
+      if(!user){ location.href = 'contract_index.html'; return; }
       gebruikerId = user.uid;
       await laadOfMaakBord();
       render();
-
-      // nu we de UID kennen, hang actie aan Kindmodus
-      kindBtn.onclick = ()=>{
-        const url = `contract_board.html?rol=kind&lid=${gebruikerId}`;
-        window.open(url, '_blank', 'noopener');
-      };
+      kindBtn.onclick = ()=>window.open(`contract_board.html?rol=kind&lid=${gebruikerId}`, '_blank', 'noopener');
     });
 
     btnUitloggen?.addEventListener('click', ()=>signOut(auth).then(()=>location.href='contract_index.html'));
   } else {
-    // Kindmodus: anonieme login + rode sluitknop tonen
-    await signInAnonymously(auth).catch(console.error);
+    await signInAnonymously(auth).catch(()=>{});
     gebruikerId = params.get('lid') || localStorage.getItem('contract_leerkracht_uid');
-    if(!gebruikerId){
-      const ingevuld = prompt('Geef leerkracht-ID (1x via QR):');
-      if(!ingevuld) return alert('Geen leerkracht-ID. Vraag de QR aan je leerkracht.');
-      gebruikerId = ingevuld.trim();
-      localStorage.setItem('contract_leerkracht_uid', gebruikerId);
-    }
-    // Sluitknop
+    if(!gebruikerId){ location.href = 'contract_index.html'; return; }
     voegKindSluitKnopToe();
     await laadOfMaakBord(false);
     render();
   }
 }
 
-// ==== FIRESTORE ====
+// FIRESTORE
 function getBordRef(){ return doc(db, "leerkrachten", gebruikerId, "borden", bordDocId); }
 async function laadOfMaakBord(magAanmaken=true){
   try{
-    const ref = getBordRef();
-    const snap = await getDoc(ref);
+    const ref = getBordRef(); const snap = await getDoc(ref);
     if(snap.exists()){
-      bord = snap.data();
-      ensureMinimumStructure();
+      bord = snap.data(); ensureMinimumStructure();
       await setDoc(ref, bord, {merge:true});
     } else if(magAanmaken){
       applyDefaultBoard(); ensureMinimumStructure();
       await setDoc(ref, bord);
     } else {
-      console.warn('Geen Firestore-doc; lokaal bord.');
       applyDefaultBoard(); ensureMinimumStructure();
     }
-  }catch(e){
-    console.warn('Firestore niet bereikbaar/regelfout:', e);
+  }catch{
     applyDefaultBoard(); ensureMinimumStructure();
   }
 }
@@ -165,11 +136,11 @@ async function bewaarBord(patch){
   catch{ await setDoc(getBordRef(), bord, {merge:true}); }
 }
 
-// ==== UI ====
+// UI
 function render(){
   ensureMinimumStructure();
 
-  // Rij 1: dropdown + verwijder
+  // Kop rij 1 (dropdowns)
   headerRij.innerHTML = '';
   const thLabel = document.createElement('th');
   thLabel.className = 'sticky-left sticky-top cel-label';
@@ -187,19 +158,17 @@ function render(){
   thPlus.appendChild(plusBtn);
   headerRij.appendChild(thPlus);
 
-  // Rij 2: ENKEL afbeelding (sticky onder rij 1)
+  // Kop rij 2 (pictogrammen)
   headerAfbeeldingen.innerHTML = '';
   const leeg = document.createElement('th');
   leeg.className = 'sticky-left sticky-top-2 subheader';
   headerAfbeeldingen.appendChild(leeg);
-
   for(const kol of bord.kolommen){
     const th = document.createElement('th');
     th.className = 'sticky-top-2 subheader';
     const img = document.createElement('img');
     img.className = 'kolom-afb';
-    img.alt = "";
-    img.src = imageSrcFor(kol.activiteitKey);
+    img.alt = ""; img.src = imageSrcFor(kol.activiteitKey);
     th.appendChild(img);
     headerAfbeeldingen.appendChild(th);
   }
@@ -212,10 +181,30 @@ function render(){
   for(const r of bord.rijen){
     const tr = document.createElement('tr');
 
-    const label = document.createElement('th');
-    label.textContent = r;
-    label.className = 'sticky-left rij-label';
-    tr.appendChild(label);
+    // Rijlabel met leerlingafbeelding + nummer
+    const th = document.createElement('th');
+    th.className = 'sticky-left rij-label';
+    const wrap = document.createElement('div');
+    wrap.className = 'leerling-label';
+    const foto = document.createElement('img');
+    foto.className = 'leerling-foto';
+    foto.alt = "";
+
+    // primair: per-leerkracht map
+    foto.src = leerlingPrimairPad(r);
+    // fallback: algemene 01.png → anders verbergen
+    foto.onerror = () => {
+      foto.onerror = () => { foto.style.visibility = 'hidden'; };
+      foto.src = leerlingFallbackPad(r);
+    };
+
+    const nr = document.createElement('div');
+    nr.className = 'leerling-nummer';
+    nr.textContent = r;
+
+    wrap.append(foto, nr);
+    th.appendChild(wrap);
+    tr.appendChild(th);
 
     for(const kol of bord.kolommen){
       const status = bord.cellen?.[r]?.[kol.id] || 'leeg';
@@ -229,21 +218,19 @@ function render(){
 function maakKolomKop(kol){
   const th = document.createElement('th');
   th.className = 'sticky-top kolomkop';
-
   if(rol === 'leerkracht'){
     const sel = document.createElement('select');
     sel.className = 'kolom-select';
     for(const a of activiteiten){
       const opt = document.createElement('option');
-      opt.value = a.key;
-      opt.textContent = a.label;
-      if((a.key || null) === (kol.activiteitKey || null)) opt.selected = true;
+      opt.value = a.key; opt.textContent = a.label;
+      if((a.key||null)===(kol.activiteitKey||null)) opt.selected = true;
       sel.appendChild(opt);
     }
     sel.onchange = async (e)=>{
-      kol.activiteitKey = e.target.value || null; // optimistic
+      kol.activiteitKey = e.target.value || null;
       render();
-      try{ await bewaarBord({ kolommen:[...bord.kolommen] }); }catch(err){ console.warn('Bewaren mislukt', err); }
+      try{ await bewaarBord({ kolommen:[...bord.kolommen] }); } catch {}
     };
     th.appendChild(sel);
 
@@ -252,16 +239,14 @@ function maakKolomKop(kol){
     del.onclick = ()=>kolomVerwijderen(kol.id);
     th.appendChild(del);
   } else {
-    const plak = document.createElement('div'); plak.style.height = '34px'; th.appendChild(plak);
+    th.appendChild(document.createElement('div')).style.height='38px';
   }
   return th;
 }
 
-// Long-press helper (0.6s) → callback
+// long-press → wit
 function addLongPress(el, cb, ms=600){
-  let t=null;
-  const start = ()=>{ t=setTimeout(()=>cb(), ms); };
-  const clear = ()=>{ if(t){clearTimeout(t); t=null;} };
+  let t=null; const start=()=>{t=setTimeout(cb,ms)}; const clear=()=>{if(t){clearTimeout(t);t=null}};
   el.addEventListener('mousedown', start);
   el.addEventListener('touchstart', start, {passive:true});
   el.addEventListener('mouseup', clear);
@@ -271,59 +256,36 @@ function addLongPress(el, cb, ms=600){
 }
 
 function maakStatusCel(rij, kolId, status){
-  const td = document.createElement('td');
-  td.className = 'status-cel';
+  const td = document.createElement('td'); td.className='status-cel';
 
-  // Bolletje (klik = cyclen; lang indrukken = wit)
   const bol = document.createElement('button');
   bol.className = 'bolletje ' + (status==='klaar'?'klaar':status==='bezig'?'bezig':'leeg');
-  bol.setAttribute('aria-pressed', status==='klaar'?'true':'false');
   bol.onclick = ()=>cycleStatusOptimistic(rij, kolId);
   addLongPress(bol, ()=>setStatusOptimistic(rij, kolId, 'leeg'));
-
-  // 3 kleurvlakken
-  const knoppen = document.createElement('div');
-  knoppen.className = 'kleur-choices';
-
-  const wit = document.createElement('div');
-  wit.className = 'kleur-btn wit';
-  wit.setAttribute('role','button');
-  wit.title = 'Wit (niet begonnen)';
-  wit.onclick = ()=>setStatusOptimistic(rij, kolId, 'leeg');
-
-  const oranje = document.createElement('div');
-  oranje.className = 'kleur-btn oranje';
-  oranje.setAttribute('role','button');
-  oranje.title = 'Verder werken (oranje)';
-  oranje.onclick = ()=>setStatusOptimistic(rij, kolId, 'bezig');
-
-  const groen = document.createElement('div');
-  groen.className = 'kleur-btn groen';
-  groen.setAttribute('role','button');
-  groen.title = 'Klaar (groen)';
-  groen.onclick = ()=>setStatusOptimistic(rij, kolId, 'klaar');
-
-  knoppen.append(wit, oranje, groen);
-
   td.appendChild(bol);
-  td.appendChild(knoppen);
+
+  const k = document.createElement('div'); k.className='kleur-choices';
+  const bW = document.createElement('div'); bW.className='kleur-btn wit';    bW.onclick=()=>setStatusOptimistic(rij,kolId,'leeg');
+  const bO = document.createElement('div'); bO.className='kleur-btn oranje'; bO.onclick=()=>setStatusOptimistic(rij,kolId,'bezig');
+  const bG = document.createElement('div'); bG.className='kleur-btn groen';  bG.onclick=()=>setStatusOptimistic(rij,kolId,'klaar');
+  k.append(bW,bO,bG); td.appendChild(k);
   return td;
 }
 
-// Acties
+// acties
 async function kolomToevoegen(){
-  if(rol !== 'leerkracht') return;
+  if(rol!=='leerkracht') return;
   const nieuwId = `k${(bord.kolommen[bord.kolommen.length-1]?.id?.slice(1)|0)+1}`;
-  const nieuw = { id: nieuwId, activiteitKey: null };
+  const nieuw   = { id: nieuwId, activiteitKey:null };
   bord.kolommen = [...bord.kolommen, nieuw]; render();
-  try{ await bewaarBord({ kolommen: bord.kolommen }); }catch(e){ console.warn(e); }
+  try{ await bewaarBord({ kolommen: bord.kolommen }); }catch{}
 }
 async function kolomVerwijderen(kolId){
-  if(rol !== 'leerkracht') return;
+  if(rol!=='leerkracht') return;
   const kolommen = bord.kolommen.filter(k=>k.id!==kolId);
   for(const r of bord.rijen){ if(bord.cellen?.[r]?.[kolId]) delete bord.cellen[r][kolId]; }
   bord.kolommen = kolommen; render();
-  try{ await bewaarBord({ kolommen, cellen: bord.cellen }); }catch(e){ console.warn(e); }
+  try{ await bewaarBord({ kolommen, cellen: bord.cellen }); }catch{}
 }
 
 function nextState(s){ return s==='leeg'?'bezig':(s==='bezig'?'klaar':'leeg'); }
@@ -334,29 +296,8 @@ function cycleStatusOptimistic(rij, kolId){
 async function setStatusOptimistic(rij, kolId, nieuw){
   bord.cellen[rij] = bord.cellen[rij] || {};
   bord.cellen[rij][kolId] = nieuw; render();
-  try{ await bewaarBord({ cellen: bord.cellen }); }catch(e){ console.warn(e); }
+  try{ await bewaarBord({ cellen: bord.cellen }); }catch{}
 }
-
-btnRijPlus?.addEventListener('click', ()=>{
-  const max = Math.max(...bord.rijen, 0);
-  bord.rijen = [...bord.rijen, max+1]; render();
-  bewaarBord({ rijen: bord.rijen }).catch(console.warn);
-});
-btnKolomPlus?.addEventListener('click', kolomToevoegen);
-document.getElementById('kolomPlusTop')?.addEventListener('click', kolomToevoegen);
-
-btnReset?.addEventListener('click', async ()=>{
-  if(rol !== 'leerkracht') return;
-  if(!confirm('Alles terug op WIT zetten voor alle kinderen?')) return;
-  for(const r of bord.rijen){
-    for(const k of bord.kolommen){
-      bord.cellen[r] = bord.cellen[r] || {};
-      bord.cellen[r][k.id] = 'leeg';
-    }
-  }
-  render();
-  try{ await bewaarBord({ cellen: bord.cellen }); }catch(e){ console.warn(e); }
-});
 
 // PDF
 btnPdf?.addEventListener('click', async ()=>{
@@ -367,31 +308,40 @@ btnPdf?.addEventListener('click', async ()=>{
   const img = canvas.toDataURL('image/png');
   const pageWidth = pdf.internal.pageSize.getWidth();
   const ratio = pageWidth / canvas.width;
-  const height = canvas.height * ratio;
-  pdf.addImage(img,'PNG',0,20,pageWidth,height);
+  pdf.addImage(img,'PNG',0,20,pageWidth,canvas.height*ratio);
   pdf.save('contractbord.pdf');
 });
 
-// QR (bestaat al)
+// QR
 btnToonQR?.addEventListener('click', ()=>{
   const dlg = document.getElementById('qrDialog');
   const canvas = document.getElementById('qrCanvas');
   const url = `${location.origin}${location.pathname.replace('contract_board.html','contract_board.html')}?rol=kind&lid=${gebruikerId}`;
-  window.QRCode.toCanvas(canvas, url, {width:256}, (err)=>{ if(err) console.error(err); dlg.showModal(); });
+  window.QRCode.toCanvas(canvas, url, {width:256}, (err)=>{ if(err)console.error(err); dlg.showModal(); });
 });
 
 // Kindmodus: rode sluitknop → terug naar start
 function voegKindSluitKnopToe(){
   const btn = document.createElement('button');
-  btn.className = 'kind-exit';
-  btn.title = 'Sluiten';
+  btn.className = 'kind-exit'; btn.title='Sluiten';
   btn.onclick = ()=>{ location.href = 'contract_index.html'; };
   document.body.appendChild(btn);
 }
 
-// Uitloggen
-btnUitloggen?.addEventListener('click', ()=>signOut(auth).then(()=>location.href='contract_index.html'));
+btnRijPlus?.addEventListener('click', ()=>{
+  const max = Math.max(...bord.rijen, 0);
+  bord.rijen = [...bord.rijen, max+1]; render();
+  bewaarBord({ rijen: bord.rijen }).catch(()=>{});
+});
+btnKolomPlus?.addEventListener('click', kolomToevoegen);
+document.getElementById('kolomPlusTop')?.addEventListener('click', kolomToevoegen);
+btnReset?.addEventListener('click', async ()=>{
+  if(rol!=='leerkracht') return;
+  if(!confirm('Alles terug op WIT zetten voor alle kinderen?')) return;
+  for(const r of bord.rijen){ for(const k of bord.kolommen){
+    bord.cellen[r] = bord.cellen[r] || {}; bord.cellen[r][k.id] = 'leeg';
+  }}
+  render(); try{ await bewaarBord({ cellen: bord.cellen }); }catch{}
+});
 
-// Start
 initAuth();
-
