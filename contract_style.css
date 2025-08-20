@@ -1,0 +1,119 @@
+/* ==== Basis thema ==== */
+:root{
+  --bg:#f6f6f6; --kaart:#ffffff; --rand:#d9d9d9; --prim:#4A90E2;
+  --ok:#66bb6a; --bezig:#ffa726; --tekst:#222; --sticky:#f0f4fa;
+
+  /* vaste hoogtes voor sticky header-rijen */
+  --row1-h: 56px;   /* rij 1: dropdown + verwijder */
+  --row2-h: 96px;   /* rij 2: pictogram */
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--tekst)}
+h1,h2,h3{margin:.5rem 0}
+
+/* ==== Startscherm ==== */
+.startscherm .kaart{
+  max-width:520px;margin:5rem auto;padding:2rem;border:1px solid var(--rand);
+  background:var(--kaart);border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.08);
+  text-align:center;
+}
+.rollen{display:flex;gap:1rem;justify-content:center;margin-top:1rem}
+.rol{display:inline-block;padding:1rem 1.2rem;border-radius:12px;border:1px solid var(--rand);text-decoration:none;color:var(--tekst);min-width:160px}
+.rol-leerkracht{background:#e7f0ff}
+.rol-kind{background:#fff0e0}
+
+/* ==== Bovenbalk ==== */
+.bovenbalk{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;
+  gap:1rem;padding:.6rem 1rem;background:var(--kaart);border-bottom:1px solid var(--rand)}
+.titelvak{display:flex;align-items:center;gap:1rem}
+.titel-plek{width:120px;height:60px;border:2px dashed var(--rand);border-radius:10px;background:#fafafa}
+.bord-info span{display:block;font-weight:bold}
+.acties button{margin-left:.4rem}
+button{cursor:pointer;border:1px solid var(--rand);border-radius:10px;padding:.5rem .8rem;background:#eef1f5}
+button.prim{background:#e6f0ff;border-color:#98baf3}
+button.warn{background:#ffe9e9;border-color:#ffb4b4}
+button.sec{background:#f3f3f3}
+
+/* ==== Tabel + scroll ==== */
+#tabelWrapper{overflow:auto;max-height:calc(100vh - 120px);padding:0 .5rem 1rem}
+table{border-collapse:separate;border-spacing:0;background:var(--kaart);min-width:900px}
+th,td{border:1px solid var(--rand);padding:.5rem;text-align:center;min-width:120px}
+
+/* vaste kolombreedtes waar nodig */
+.cel-label{min-width:70px;width:70px}
+.cel-plus{min-width:60px;width:60px}
+
+/* kop-rijen hebben vaste hoogtes */
+.kolomkop{background:var(--sticky); height:var(--row1-h); padding:0 .5rem;}
+.subheader{height:var(--row2-h); background:var(--sticky);}
+
+/* sticky gedrag met nette offsets */
+.sticky-top{position:sticky; top:0; z-index:6; box-shadow:0 1px 0 rgba(0,0,0,.03);}
+.sticky-top-2{position:sticky; top:var(--row1-h); z-index:5; box-shadow:0 1px 0 rgba(0,0,0,.03);}
+.sticky-left{position:sticky; left:0; background:var(--sticky); z-index:7}
+thead th.sticky-left{z-index:8}
+
+/* geen overlap-gaten */
+#headerRij th, #headerAfbeeldingen th { white-space:nowrap; }
+
+/* ==== Kolomselector (leerkracht) ==== */
+.kolom-select{
+  appearance:none;
+  height:38px; line-height:38px;
+  padding:0 .6rem;
+  border:1px solid var(--rand);
+  background:#fff; border-radius:10px; margin:.2rem 0;
+}
+.kolom-verwijder{margin-left:.4rem}
+
+/* ==== Pictogrammenrij ==== */
+.kolom-afb{
+  width:64px;height:64px;object-fit:contain;
+  background:#f7f9fc;border-radius:10px
+}
+
+/* ==== Rijen ==== */
+.rij-label{font-weight:bold}
+
+/* ==== Statusbol + kindknoppen ==== */
+.status-cel{height:110px;padding:.3rem .5rem}
+.bolletje{
+  width:54px;height:54px;border-radius:50%;
+  border:3px solid #c7c7c7;background:#fff;display:inline-block;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.08);
+}
+.bolletje.leeg{background:#ffffff}
+.bolletje.bezig{background:var(--bezig)}
+.bolletje.klaar{background:var(--ok)}
+.bolletje:focus{outline:3px solid #cfe1ff}
+
+/* drie kleurvlakken onder elk bolletje */
+.kleur-choices{margin-top:.45rem; display:flex; gap:.6rem; justify-content:center}
+.kleur-btn{
+  width:34px;height:24px;border-radius:7px;border:2px solid #888;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.08);
+}
+.kleur-btn.wit{background:#ffffff}
+.kleur-btn.oranje{background:var(--bezig)}
+.kleur-btn.groen{background:var(--ok)}
+.kleur-btn:focus{outline:3px solid #cfe1ff}
+
+/* ==== Kindmodus: sluitknop ==== */
+.kind-exit{
+  position:fixed; top:12px; right:12px; z-index:20;
+  width:36px; height:36px; border-radius:50%;
+  background:#e54848; color:#fff; border:none;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:bold; box-shadow:0 2px 8px rgba(0,0,0,.15);
+}
+.kind-exit:before{ content:'✕'; font-size:18px; line-height:1; }
+.kind-exit:focus{ outline:3px solid #ffd1d1; }
+
+/* ==== Responsief ==== */
+@media (max-width: 900px){
+  th,td{min-width:100px}
+  .kolom-afb{width:52px;height:52px}
+  .bolletje{width:48px;height:48px}
+  .kleur-btn{width:30px;height:22px}
+}

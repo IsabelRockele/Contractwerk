@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contractwerkbord</title>
+  <link rel="manifest" href="contract_manifest.json">
+  <meta name="theme-color" content="#4A90E2">
+  <link rel="stylesheet" href="contract_style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+  <header class="bovenbalk">
+    <div class="titelvak">
+      <div class="titel-plek" title="Hier kan je een afbeelding als titel plaatsen (optioneel).">
+        <!-- Leerkracht kan bovenaan zelf een afbeelding zetten via eigen CMS/Canva. -->
+      </div>
+      <div class="bord-info">
+        <span id="bordNaam">Contractbord</span>
+        <small id="bordSub">Weekoverzicht</small>
+      </div>
+    </div>
+    <div class="acties" id="actiesLeerkracht" hidden>
+      <button id="btnKolomPlus" class="sec">+ Kolom</button>
+      <button id="btnRijPlus" class="sec">+ Nummer</button>
+      <button id="btnPdf" class="prim">Download als PDF</button>
+      <button id="btnReset" class="warn">Alles resetten</button>
+      <button id="btnToonQR" class="sec">QR-code</button>
+      <button id="btnUitloggen" class="sec">Uitloggen</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="tabelWrapper">
+      <table id="bordTabel" aria-label="Contractwerkbord">
+        <thead>
+          <tr id="headerRij">
+            <th class="sticky-left sticky-top cel-label">Nr.</th>
+            <!-- Kolommen worden dynamisch gevuld -->
+            <th class="sticky-top cel-plus"><button id="kolomPlusTop" title="Kolom toevoegen">+</button></th>
+          </tr>
+          <tr id="headerAfbeeldingen">
+            <th class="sticky-left sticky-top subheader"></th>
+            <!-- Afbeeldingscellen per kolom -->
+            <th class="sticky-top subheader"></th>
+          </tr>
+        </thead>
+        <tbody id="bodyRijen">
+          <!-- Rijen 1..25 dynamisch -->
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <dialog id="qrDialog">
+    <h3>QR-code voor dit bord</h3>
+    <canvas id="qrCanvas" width="256" height="256" aria-label="QR-code"></canvas>
+    <form method="dialog"><button>Sluiten</button></form>
+  </dialog>
+
+  <template id="kolomTemplate">
+    <th class="sticky-top kolomkop">
+      <div class="kolom-selector">
+        <button class="pijl links" data-dir="-1" title="Vorige activiteit">◀</button>
+        <img class="kolom-afb" alt="Activiteit" />
+        <button class="pijl rechts" data-dir="1" title="Volgende activiteit">▶</button>
+      </div>
+      <div class="kolom-naam"></div>
+      <button class="kolom-verwijder" title="Verwijder kolom">✕</button>
+    </th>
+  </template>
+
+  <template id="statusCelTemplate">
+    <td class="status-cel">
+      <button class="bolletje" aria-pressed="false" title="Klik om te wisselen"></button>
+    </td>
+  </template>
+
+  <script type="module" src="contract_script.js"></script>
+</body>
+</html>
