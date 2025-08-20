@@ -3,6 +3,7 @@
 // - Kindmodus: anoniem; UID van leerkracht in ?lid=… (uit QR / localStorage).
 // - Sticky kop (2 rijen), kleurenstatus wit/oranje/groen + long-press=reset.
 // - Leerlingfoto per klasnummer uit: contract_afbeeldingen/<UID>/01.png (fallback naar contract_afbeeldingen/01.png).
+// - NIEUW: PDF generator met meerpagina’s + herhaalde kop.
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -31,9 +32,13 @@ const btnPdf = document.getElementById('btnPdf');
 const btnReset = document.getElementById('btnReset');
 const btnUitloggen = document.getElementById('btnUitloggen');
 const btnToonQR = document.getElementById('btnToonQR');
-const headerRij = document.getElementById('headerRij');
-const headerAfbeeldingen = document.getElementById('headerAfbeeldingen');
-const bodyRijen = document.getElementById('bodyRijen');
+const headerRij = document.getElementById('headerRij');                 // <tr> (selects)
+const headerAfbeeldingen = document.getElementById('headerAfbeeldingen'); // <tr> (pictogrammen)
+const bodyRijen = document.getElementById('bodyRijen');                   // <tbody>
+
+// We nemen aan dat de tabel binnen #tabelWrapper staat:
+const tabelWrapper = document.getElementById('tabelWrapper');
+const tabelEl = tabelWrapper ? tabelWrapper.querySelector('table') : null;
 
 const activiteiten = [
   { key: null, label: "—" },
@@ -141,13 +146,14 @@ function render(){
   ensureMinimumStructure();
 
   // Kop rij 1 (dropdowns)
-  headerRij.innerHTML = '';
+  const theadRow1 = headerRij;
+  theadRow1.innerHTML = '';
   const thLabel = document.createElement('th');
   thLabel.className = 'sticky-left sticky-top cel-label';
   thLabel.textContent = 'Nr.';
-  headerRij.appendChild(thLabel);
+  theadRow1.appendChild(thLabel);
 
-  for(const kol of bord.kolommen) headerRij.appendChild(maakKolomKop(kol));
+  for(const kol of bord.kolommen) theadRow1.appendChild(maakKolomKop(kol));
 
   const thPlus = document.createElement('th');
   thPlus.className = 'sticky-top cel-plus';
@@ -156,13 +162,14 @@ function render(){
   plusBtn.title = 'Kolom toevoegen';
   plusBtn.onclick = ()=>kolomToevoegen();
   thPlus.appendChild(plusBtn);
-  headerRij.appendChild(thPlus);
+  theadRow1.appendChild(thPlus);
 
   // Kop rij 2 (pictogrammen)
-  headerAfbeeldingen.innerHTML = '';
+  const theadRow2 = headerAfbeeldingen;
+  theadRow2.innerHTML = '';
   const leeg = document.createElement('th');
   leeg.className = 'sticky-left sticky-top-2 subheader';
-  headerAfbeeldingen.appendChild(leeg);
+  theadRow2.appendChild(leeg);
   for(const kol of bord.kolommen){
     const th = document.createElement('th');
     th.className = 'sticky-top-2 subheader';
@@ -170,11 +177,11 @@ function render(){
     img.className = 'kolom-afb';
     img.alt = ""; img.src = imageSrcFor(kol.activiteitKey);
     th.appendChild(img);
-    headerAfbeeldingen.appendChild(th);
+    theadRow2.appendChild(th);
   }
   const leeg2 = document.createElement('th');
   leeg2.className = 'sticky-top-2 subheader';
-  headerAfbeeldingen.appendChild(leeg2);
+  theadRow2.appendChild(leeg2);
 
   // Body
   bodyRijen.innerHTML = '';
@@ -299,18 +306,134 @@ async function setStatusOptimistic(rij, kolId, nieuw){
   try{ await bewaarBord({ cellen: bord.cellen }); }catch{}
 }
 
-// PDF
-btnPdf?.addEventListener('click', async ()=>{
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF('l','pt','a4');
-  const node = document.getElementById('tabelWrapper');
-  const canvas = await html2canvas(node,{ scale:2, backgroundColor:'#ffffff' });
-  const img = canvas.toDataURL('image/png');
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const ratio = pageWidth / canvas.width;
-  pdf.addImage(img,'PNG',0,20,pageWidth,canvas.height*ratio);
-  pdf.save('contractbord.pdf');
-});
+/* =============== PDF: meerdere pagina's + herhaalde kop =============== */
+/* Vereist: window.jspdf (jsPDF) en html2canvas zijn al ingeladen in contract_board.html */
+
+btnPdf?.addEventListener('click', async ()=>{ await downloadContractbordPdf(); });
+
+async function downloadContractbordPdf(){
+  try{
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('l','pt','a4');
+    const pageWidthPt  = pdf.internal.pageSize.getWidth();
+    const pageHeightPt = pdf.internal.pageSize.getHeight();
+    const marginTopPt  = 18; // kleine marge bovenaan
+
+    // 1) Maak aparte canvas van de HEADER (de twee kop-rijen samen)
+    //    We clonen de thead (of de twee rijen) in een tijdelijke container zodat html2canvas
+    //    een nette afbeelding kan maken.
+    const tempWrapper = document.createElement('div');
+    tempWrapper.style.position = 'fixed';
+    tempWrapper.style.left = '-99999px';
+    tempWrapper.style.top = '0';
+    const tempTable = tabelEl.cloneNode(false); // leeg skelet
+    const thead = tabelEl.querySelector('thead');
+    let tmpThead;
+    if (thead) {
+      tmpThead = thead.cloneNode(true);
+    } else {
+      // Als er geen <thead> is, bouwen we er een en hangen de twee header <tr>'s daarin.
+      tmpThead = document.createElement('thead');
+      if (headerRij) tmpThead.appendChild(headerRij.cloneNode(true));
+      if (headerAfbeeldingen) tmpThead.appendChild(headerAfbeeldingen.cloneNode(true));
+    }
+    tempTable.appendChild(tmpThead);
+    tempWrapper.appendChild(tempTable);
+    document.body.appendChild(tempWrapper);
+
+    const headerCanvas = await html2canvas(tempTable, { scale: 2, backgroundColor: '#FFFFFF' });
+
+    // Ruim de tijdelijke DOM op
+    tempWrapper.remove();
+
+    // 2) Maak canvas van het BODY-gedeelte (zonder de kop).
+    //    We verbergen de kop tijdelijk, renderen de hele tabel (dan is het uitsluitend body),
+    //    en zetten daarna de kop terug zichtbaar.
+    const theadReal = tabelEl.querySelector('thead');
+    let prevDisplay = '';
+    if (theadReal) {
+      prevDisplay = theadReal.style.display;
+      theadReal.style.display = 'none';
+    } else {
+      // Als er geen thead is, verberg afzonderlijke rijen
+      if (headerRij) headerRij.style.display = 'none';
+      if (headerAfbeeldingen) headerAfbeeldingen.style.display = 'none';
+    }
+
+    const bodyCanvas = await html2canvas(tabelEl, { scale: 2, backgroundColor: '#FFFFFF' });
+
+    // herstel zichtbaarheid
+    if (theadReal) {
+      theadReal.style.display = prevDisplay;
+    } else {
+      if (headerRij) headerRij.style.display = '';
+      if (headerAfbeeldingen) headerAfbeeldingen.style.display = '';
+    }
+
+    // 3) Schalen: we vullen de pagina-breedte; hoogte volgt verhouding
+    const bodyRatio = pageWidthPt / bodyCanvas.width;
+    const headerRatio = pageWidthPt / headerCanvas.width;
+
+    const headerHeightPt = headerCanvas.height * headerRatio;
+    const usableBodyHeightPt = pageHeightPt - marginTopPt - headerHeightPt; // wat overblijft onder header
+    const bodySlicePxPerPage = Math.floor(usableBodyHeightPt / bodyRatio);  // hoeveel pixels uit bodyCanvas per pagina
+
+    // 4) Pagina’s opbouwen
+    let yPx = 0;
+    let pageIndex = 0;
+
+    while (yPx < bodyCanvas.height) {
+      if (pageIndex > 0) pdf.addPage();
+
+      // teken header bovenaan elke pagina
+      pdf.addImage(
+        headerCanvas.toDataURL('image/png'),
+        'PNG',
+        0,
+        marginTopPt,
+        pageWidthPt,
+        headerHeightPt
+      );
+
+      // snij een deel van de bodyCanvas uit
+      const sliceHeightPx = Math.min(bodySlicePxPerPage, bodyCanvas.height - yPx);
+      const sliceDataUrl = canvasSliceToPng(bodyCanvas, 0, yPx, bodyCanvas.width, sliceHeightPx);
+
+      // plaats deze slice onder de header
+      const sliceHeightPt = sliceHeightPx * bodyRatio;
+      const bodyStartPt = marginTopPt + headerHeightPt;
+
+      pdf.addImage(
+        sliceDataUrl,
+        'PNG',
+        0,
+        bodyStartPt,
+        pageWidthPt,
+        sliceHeightPt
+      );
+
+      yPx += sliceHeightPx;
+      pageIndex++;
+    }
+
+    pdf.save('contractbord.pdf');
+  } catch (err) {
+    console.error('PDF genereren mislukt:', err);
+    alert('PDF genereren is mislukt. Probeer opnieuw.');
+  }
+}
+
+// Hulpfunctie: snij een deel uit een canvas en geef PNG dataURL terug
+function canvasSliceToPng(sourceCanvas, sx, sy, sw, sh){
+  const c = document.createElement('canvas');
+  c.width = sw; c.height = sh;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0,0,c.width,c.height);
+  ctx.drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+  return c.toDataURL('image/png');
+}
+/* =================== einde PDF =================== */
 
 // QR
 btnToonQR?.addEventListener('click', ()=>{
@@ -345,3 +468,4 @@ btnReset?.addEventListener('click', async ()=>{
 });
 
 initAuth();
+
