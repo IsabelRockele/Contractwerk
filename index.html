@@ -1,26 +1,229 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Contractwerkbord</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Contractbord – Start</title>
+
+  <!-- EXTERN: volledige vormgeving -->
+  <link rel="stylesheet" href="contract_stijl.css">
+
+  <!-- FALLBACK: basisopmaak + verbergen login,
+       werkt zelfs als contract_stijl.css niet (goed) laadt -->
+  <style>
+    :root{
+      --bg:#f6f6f6; --kaart:#ffffff; --rand:#d9d9d9; --tekst:#222;
+    }
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,Helvetica,sans-serif;
+         background:var(--bg);color:var(--tekst)}
+    .verborgen{display:none !important;}
+    .bovenbalk{position:sticky;top:0;padding:12px 16px;background:var(--kaart);
+               border-bottom:1px solid var(--rand);font-weight:600}
+    .kaart{max-width:860px;margin:32px auto;padding:20px;background:var(--kaart);
+           border:1px solid var(--rand);border-radius:14px}
+    .rollen{display:flex;gap:16px;justify-content:center;margin:12px 0 22px}
+    .rol{min-width:220px;padding:14px 18px;border:1px solid var(--rand);
+         border-radius:12px;background:#f5f7fb;font-weight:600;cursor:pointer}
+    .rol-met-beeld{background:#fff0e0}
+    .rol-afbeelding{width:110px;height:110px;object-fit:contain;display:block}
+    .terug{margin:0 0 12px;border:1px solid var(--rand);background:#f3f3f3;
+           border-radius:999px;padding:8px 12px;cursor:pointer}
+    .loginkaart{max-width:560px;margin:0 auto;padding:16px;border:1px solid var(--rand);
+                background:var(--kaart);border-radius:14px}
+    .formgroep{display:flex;flex-direction:column;gap:6px;margin:.8rem 0}
+    input[type="email"],input[type="password"]{
+      padding:12px;border:1px solid var(--rand);border-radius:10px;font-size:16px
+    }
+    .formknoppen{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+    button{cursor:pointer;padding:10px 14px;border-radius:10px;border:1px solid var(--rand)}
+    .prim{background:#e6f0ff}
+    .sec{background:#f3f3f3}
+    .warn{background:#ffe9e9}
+  </style>
+
   <link rel="manifest" href="contract_manifest.json">
-  <meta name="theme-color" content="#4A90E2">
-  <link rel="stylesheet" href="contract_style.css"/>
+  <link rel="icon" href="pictogram-192x192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="pictogram-512x512.png">
 </head>
 <body class="startscherm">
-  <div class="kaart">
-    <h1>Wie ben je?</h1>
-    <div class="rollen">
-      <a class="rol rol-leerkracht" href="contract_board.html?rol=leerkracht">Leerkracht</a>
-      <a class="rol rol-kind" href="contract_board.html?rol=kind">Kind</a>
-    </div>
-    <p class="uitleg">Kies je rol. Leerkrachten krijgen beheer, PDF en QR. Kinderen zien enkel het bord en klikken hun status.</p>
-  </div>
-  <script>
+
+  <div class="bovenbalk">Contractbord • Start</div>
+
+  <main class="kaart">
+    <!-- ROlkeuze -->
+    <section id="rolKeuze">
+      <h2 style="text-align:center;margin-top:0">Kies je rol</h2>
+      <div class="rollen">
+        <button id="btnNaarLeerkracht" class="rol" aria-label="Leerkracht">Leerkracht</button>
+        <button id="btnNaarKind" class="rol rol-met-beeld" aria-label="Kind">
+          <img src="contract_afbeeldingen/kind.png" alt="" class="rol-afbeelding">
+        </button>
+      </div>
+    </section>
+
+    <!-- Leerkracht-login (verborgen tot klik) -->
+    <section id="leerkrachtLogin" class="verborgen">
+      <button id="btnTerug" class="terug" aria-label="Terug naar rolkeuze">← Terug</button>
+
+      <form id="loginForm" class="loginkaart" autocomplete="on">
+        <h3>Inloggen leerkracht</h3>
+
+        <div class="formgroep">
+          <label for="email">E-mail</label>
+          <input id="email" name="email" type="email" inputmode="email" autocomplete="email" spellcheck="false" required>
+        </div>
+
+        <div class="formgroep">
+          <label for="password">Wachtwoord</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+
+        <label style="display:flex;gap:8px;align-items:center;margin:.4rem 0">
+          <input id="rememberEmail" type="checkbox" checked>
+          <span>E-mail onthouden op dit toestel</span>
+        </label>
+        <small>Tip: laat je browser het wachtwoord bewaren, dan staat alles de volgende keer al ingevuld.</small>
+
+        <div class="formknoppen">
+          <button type="submit" class="prim">Log in</button>
+          <button type="button" id="gaNaarBord" class="sec" title="Open bord (als je al ingelogd bent)">Open bord</button>
+          <button type="button" id="andereLeerkracht" class="warn" title="Uitloggen en met ander account inloggen">Inloggen als andere leerkracht</button>
+        </div>
+
+        <p id="loginFout" style="color:#c0392b" aria-live="polite" hidden></p>
+      </form>
+    </section>
+
+    <!-- Kind-ingang (UID via QR of éénmalig intypen) -->
+    <dialog id="kindDialog">
+      <form id="kindForm" method="dialog" class="loginkaart" autocomplete="on">
+        <h3>Kind – leerkrachtcode</h3>
+        <div class="formgroep">
+          <label for="leerkrachtUid">Leerkracht-ID</label>
+          <input id="leerkrachtUid" name="username" type="text" autocomplete="username" placeholder="Scan QR of vul code in" required>
+        </div>
+        <div class="formknoppen">
+          <button type="submit" class="prim">Ga verder</button>
+          <button type="button" id="kindAnnuleer" class="warn">Annuleer</button>
+        </div>
+        <small>We onthouden deze code voor volgende keer.</small>
+      </form>
+    </dialog>
+  </main>
+
+  <!-- Firebase + startlogica -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, setPersistence, browserLocalPersistence,
+             onAuthStateChanged, signInWithEmailAndPassword, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA7KxXMvZ4dzBQDut3CMyWUblLte2tFzoQ",
+      authDomain: "huiswerkapp-a311e.firebaseapp.com",
+      projectId: "huiswerkapp-a311e",
+      storageBucket: "huiswerkapp-a311e.appspot.com",
+      messagingSenderId: "797169941164",
+      appId: "1:797169941164:web:511d9618079f1378d0fd09"
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    // UI refs
+    const rolKeuze       = document.getElementById('rolKeuze');
+    const leerkrachtLogin= document.getElementById('leerkrachtLogin');
+    const btnNaarLeerkracht = document.getElementById('btnNaarLeerkracht');
+    const btnTerug       = document.getElementById('btnTerug');
+    const btnNaarKind    = document.getElementById('btnNaarKind');
+
+    const loginForm      = document.getElementById('loginForm');
+    const emailEl        = document.getElementById('email');
+    const passEl         = document.getElementById('password');
+    const rememberEl     = document.getElementById('rememberEmail');
+    const foutEl         = document.getElementById('loginFout');
+    const gaNaarBordBtn  = document.getElementById('gaNaarBord');
+    const andereBtn      = document.getElementById('andereLeerkracht');
+
+    const kindDialog     = document.getElementById('kindDialog');
+    const kindForm       = document.getElementById('kindForm');
+    const kindAnnuleerBtn= document.getElementById('kindAnnuleer');
+    const leerkrachtUidEl= document.getElementById('leerkrachtUid');
+
+    // Prefill e-mail indien onthouden
+    const savedEmail = localStorage.getItem('contract_leerkracht_email');
+    if (savedEmail) emailEl.value = savedEmail;
+
+    // "Open bord" actief als je al ingelogd bent
+    onAuthStateChanged(auth, (user) => {
+      gaNaarBordBtn.disabled = !user;
+    });
+
+    // Leerkracht → toon login; Terug → rolkeuze
+    btnNaarLeerkracht.addEventListener('click', () => {
+      rolKeuze.classList.add('verborgen');
+      leerkrachtLogin.classList.remove('verborgen');
+      setTimeout(()=>emailEl.focus(), 30);
+    });
+    btnTerug.addEventListener('click', () => {
+      leerkrachtLogin.classList.add('verborgen');
+      rolKeuze.classList.remove('verborgen');
+    });
+
+    // Kindmodus (via QR of handmatig UID)
+    btnNaarKind.addEventListener('click', async () => {
+      try { await signInAnonymously(auth); } catch {}
+      const viaQr = new URLSearchParams(location.search).get('lid');
+      const lid = viaQr || localStorage.getItem('contract_leerkracht_uid') || '';
+      if (viaQr) {
+        location.href = `contract_board.html?rol=kind&lid=${encodeURIComponent(viaQr)}`;
+      } else {
+        leerkrachtUidEl.value = lid;
+        kindDialog.showModal();
+      }
+    });
+    kindAnnuleerBtn.addEventListener('click', ()=>kindDialog.close());
+    kindForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const lid = leerkrachtUidEl.value.trim();
+      if (!lid) return;
+      localStorage.setItem('contract_leerkracht_uid', lid);
+      location.href = `contract_board.html?rol=kind&lid=${encodeURIComponent(lid)}`;
+    });
+
+    // Leerkracht login + blijven ingelogd
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      foutEl.hidden = true;
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+        const email = emailEl.value.trim();
+        const pass  = passEl.value;
+        if (rememberEl.checked) localStorage.setItem('contract_leerkracht_email', email);
+        else localStorage.removeItem('contract_leerkracht_email');
+        await signInWithEmailAndPassword(auth, email, pass);
+        location.href = 'contract_board.html?rol=leerkracht';
+      } catch (err) {
+        foutEl.textContent = err?.message || 'Inloggen mislukt.';
+        foutEl.hidden = false;
+      }
+    });
+
+    gaNaarBordBtn.addEventListener('click', () => {
+      location.href = 'contract_board.html?rol=leerkracht';
+    });
+
+    andereBtn.addEventListener('click', async () => {
+      try { await signOut(auth); } catch {}
+      localStorage.removeItem('contract_leerkracht_email');
+      emailEl.value = ''; passEl.value = ''; emailEl.focus();
+    });
+
+    // Optioneel: PWA service worker
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+      navigator.serviceWorker.register('sw.js').catch(()=>{});
     }
   </script>
 </body>
 </html>
+
+
