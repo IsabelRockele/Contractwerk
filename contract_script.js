@@ -1,9 +1,9 @@
 // contract_script.js — Bordpagina
-// - Leerkracht ingelogd verplicht (geen browserprompts); anders terug naar start.
-// - Kindmodus: anoniem; UID van leerkracht in ?lid=… (uit QR / localStorage).
+// - Leerkracht ingelogd verplicht; anders terug naar start.
+// - Kindmodus: anoniem; UID van leerkracht in ?lid=… (QR / localStorage).
 // - Sticky kop (2 rijen), kleurenstatus wit/oranje/groen + long-press=reset.
 // - Leerlingfoto per klasnummer uit: contract_afbeeldingen/<UID>/01.png (fallback naar contract_afbeeldingen/01.png).
-// - NIEUW: PDF generator met meerpagina’s + herhaalde kop.
+// - PDF: meerpagina’s, kop op elke pagina, snijden op rijgrenzen, en (NIEUW) geen kleurvakjes onder de bolletjes in de PDF.
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -25,39 +25,37 @@ const params = new URLSearchParams(location.search);
 const rol = params.get('rol') || 'kind';
 
 // UI refs
-const actiesLeerkracht = document.getElementById('actiesLeerkracht');
-const btnKolomPlus = document.getElementById('btnKolomPlus');
-const btnRijPlus = document.getElementById('btnRijPlus');
-const btnPdf = document.getElementById('btnPdf');
-const btnReset = document.getElementById('btnReset');
-const btnUitloggen = document.getElementById('btnUitloggen');
-const btnToonQR = document.getElementById('btnToonQR');
-const headerRij = document.getElementById('headerRij');                 // <tr> (selects)
-const headerAfbeeldingen = document.getElementById('headerAfbeeldingen'); // <tr> (pictogrammen)
-const bodyRijen = document.getElementById('bodyRijen');                   // <tbody>
-
-// We nemen aan dat de tabel binnen #tabelWrapper staat:
-const tabelWrapper = document.getElementById('tabelWrapper');
-const tabelEl = tabelWrapper ? tabelWrapper.querySelector('table') : null;
+const actiesLeerkracht     = document.getElementById('actiesLeerkracht');
+const btnKolomPlus         = document.getElementById('btnKolomPlus');
+const btnRijPlus           = document.getElementById('btnRijPlus');
+const btnPdf               = document.getElementById('btnPdf');
+const btnReset             = document.getElementById('btnReset');
+const btnUitloggen         = document.getElementById('btnUitloggen');
+const btnToonQR            = document.getElementById('btnToonQR');
+const headerRij            = document.getElementById('headerRij');
+const headerAfbeeldingen   = document.getElementById('headerAfbeeldingen');
+const bodyRijen            = document.getElementById('bodyRijen');
+const tabelWrapper         = document.getElementById('tabelWrapper');
+const tabelEl              = tabelWrapper ? tabelWrapper.querySelector('table') : null;
 
 const activiteiten = [
-  { key: null, label: "—" },
-  { key: "rekenen", label: "Rekenen" },
-  { key: "taal", label: "Taal" },
-  { key: "lezen", label: "Lezen" },
+  { key: null,        label: "—" },
+  { key: "rekenen",   label: "Rekenen" },
+  { key: "taal",      label: "Taal" },
+  { key: "lezen",     label: "Lezen" },
   { key: "knutselen", label: "Knutselen" },
-  { key: "meten", label: "Meten" },
+  { key: "meten",     label: "Meten" },
   { key: "kloklezen", label: "Kloklezen" },
   { key: "schrijven", label: "Schrijven" },
-  { key: "tekenen", label: "Tekenen" },
-  { key: "bouwen", label: "Bouwen" },
-  { key: "muziek", label: "Muziek" }
+  { key: "tekenen",   label: "Tekenen" },
+  { key: "bouwen",    label: "Bouwen" },
+  { key: "muziek",    label: "Muziek" }
 ];
 
-const MAX_INIT_RIJ = 25;
-const INIT_KOLOMMEN = 6;
+const MAX_INIT_RIJ   = 25;
+const INIT_KOLOMMEN  = 6;
 
-let gebruikerId = null;      // UID van de leerkracht
+let gebruikerId = null;      // UID leerkracht
 const bordDocId = "contractbord";
 let bord = { kolommen: [], rijen: [], cellen: {} };
 
@@ -84,11 +82,49 @@ function ensureMinimumStructure(){
 }
 function applyDefaultBoard(){
   bord.kolommen = Array.from({length:INIT_KOLOMMEN},(_,i)=>({id:`k${i+1}`, activiteitKey:null}));
-  bord.rijen = Array.from({length:MAX_INIT_RIJ},(_,i)=>i+1);
-  bord.cellen = {};
+  bord.rijen    = Array.from({length:MAX_INIT_RIJ},(_,i)=>i+1);
+  bord.cellen   = {};
 }
 
-// AUTH
+/* ================== ACTIES ================== */
+async function kolomToevoegen(){
+  if(rol!=='leerkracht') return;
+  const lastNum = (bord.kolommen[bord.kolommen.length-1]?.id?.replace(/^k/,'')|0);
+  const nieuwId = `k${lastNum+1}`;
+  const nieuw   = { id: nieuwId, activiteitKey:null };
+  bord.kolommen = [...bord.kolommen, nieuw];
+  render();
+  try{ await bewaarBord({ kolommen: bord.kolommen }); }catch{}
+}
+async function kolomVerwijderen(kolId){
+  if(rol!=='leerkracht') return;
+  const kolommen = bord.kolommen.filter(k=>k.id!==kolId);
+  for(const r of bord.rijen){ if(bord.cellen?.[r]?.[kolId]) delete bord.cellen[r][kolId]; }
+  bord.kolommen = kolommen;
+  render();
+  try{ await bewaarBord({ kolommen, cellen: bord.cellen }); }catch{}
+}
+function nextState(s){ return s==='leeg'?'bezig':(s==='bezig'?'klaar':'leeg'); }
+function addLongPress(el, cb, ms=600){
+  let t=null; const start=()=>{t=setTimeout(cb,ms)}; const clear=()=>{if(t){clearTimeout(t);t=null}};
+  el.addEventListener('mousedown', start);
+  el.addEventListener('touchstart', start, {passive:true});
+  el.addEventListener('mouseup', clear);
+  el.addEventListener('mouseleave', clear);
+  el.addEventListener('touchend', clear);
+  el.addEventListener('touchcancel', clear);
+}
+function cycleStatusOptimistic(rij, kolId){
+  const huidig = (bord.cellen?.[rij]?.[kolId]) || 'leeg';
+  setStatusOptimistic(rij, kolId, nextState(huidig));
+}
+async function setStatusOptimistic(rij, kolId, nieuw){
+  bord.cellen[rij] = bord.cellen[rij] || {};
+  bord.cellen[rij][kolId] = nieuw; render();
+  try{ await bewaarBord({ cellen: bord.cellen }); }catch{}
+}
+
+/* ================== AUTH ================== */
 async function initAuth(){
   if(rol === 'leerkracht'){
     actiesLeerkracht.hidden = false;
@@ -117,7 +153,7 @@ async function initAuth(){
   }
 }
 
-// FIRESTORE
+/* ================== FIRESTORE ================== */
 function getBordRef(){ return doc(db, "leerkrachten", gebruikerId, "borden", bordDocId); }
 async function laadOfMaakBord(magAanmaken=true){
   try{
@@ -141,35 +177,33 @@ async function bewaarBord(patch){
   catch{ await setDoc(getBordRef(), bord, {merge:true}); }
 }
 
-// UI
+/* ================== UI render ================== */
 function render(){
   ensureMinimumStructure();
 
   // Kop rij 1 (dropdowns)
-  const theadRow1 = headerRij;
-  theadRow1.innerHTML = '';
+  headerRij.innerHTML = '';
   const thLabel = document.createElement('th');
   thLabel.className = 'sticky-left sticky-top cel-label';
   thLabel.textContent = 'Nr.';
-  theadRow1.appendChild(thLabel);
+  headerRij.appendChild(thLabel);
 
-  for(const kol of bord.kolommen) theadRow1.appendChild(maakKolomKop(kol));
+  for(const kol of bord.kolommen) headerRij.appendChild(maakKolomKop(kol));
 
   const thPlus = document.createElement('th');
   thPlus.className = 'sticky-top cel-plus';
   const plusBtn = document.createElement('button');
   plusBtn.id = 'kolomPlusTop'; plusBtn.textContent = '+';
   plusBtn.title = 'Kolom toevoegen';
-  plusBtn.onclick = ()=>kolomToevoegen();
+  plusBtn.addEventListener('click', kolomToevoegen);
   thPlus.appendChild(plusBtn);
-  theadRow1.appendChild(thPlus);
+  headerRij.appendChild(thPlus);
 
   // Kop rij 2 (pictogrammen)
-  const theadRow2 = headerAfbeeldingen;
-  theadRow2.innerHTML = '';
+  headerAfbeeldingen.innerHTML = '';
   const leeg = document.createElement('th');
   leeg.className = 'sticky-left sticky-top-2 subheader';
-  theadRow2.appendChild(leeg);
+  headerAfbeeldingen.appendChild(leeg);
   for(const kol of bord.kolommen){
     const th = document.createElement('th');
     th.className = 'sticky-top-2 subheader';
@@ -177,18 +211,17 @@ function render(){
     img.className = 'kolom-afb';
     img.alt = ""; img.src = imageSrcFor(kol.activiteitKey);
     th.appendChild(img);
-    theadRow2.appendChild(th);
+    headerAfbeeldingen.appendChild(th);
   }
   const leeg2 = document.createElement('th');
   leeg2.className = 'sticky-top-2 subheader';
-  theadRow2.appendChild(leeg2);
+  headerAfbeeldingen.appendChild(leeg2);
 
   // Body
   bodyRijen.innerHTML = '';
   for(const r of bord.rijen){
     const tr = document.createElement('tr');
 
-    // Rijlabel met leerlingafbeelding + nummer
     const th = document.createElement('th');
     th.className = 'sticky-left rij-label';
     const wrap = document.createElement('div');
@@ -197,9 +230,7 @@ function render(){
     foto.className = 'leerling-foto';
     foto.alt = "";
 
-    // primair: per-leerkracht map
     foto.src = leerlingPrimairPad(r);
-    // fallback: algemene 01.png → anders verbergen
     foto.onerror = () => {
       foto.onerror = () => { foto.style.visibility = 'hidden'; };
       foto.src = leerlingFallbackPad(r);
@@ -251,17 +282,6 @@ function maakKolomKop(kol){
   return th;
 }
 
-// long-press → wit
-function addLongPress(el, cb, ms=600){
-  let t=null; const start=()=>{t=setTimeout(cb,ms)}; const clear=()=>{if(t){clearTimeout(t);t=null}};
-  el.addEventListener('mousedown', start);
-  el.addEventListener('touchstart', start, {passive:true});
-  el.addEventListener('mouseup', clear);
-  el.addEventListener('mouseleave', clear);
-  el.addEventListener('touchend', clear);
-  el.addEventListener('touchcancel', clear);
-}
-
 function maakStatusCel(rij, kolId, status){
   const td = document.createElement('td'); td.className='status-cel';
 
@@ -279,157 +299,112 @@ function maakStatusCel(rij, kolId, status){
   return td;
 }
 
-// acties
-async function kolomToevoegen(){
-  if(rol!=='leerkracht') return;
-  const nieuwId = `k${(bord.kolommen[bord.kolommen.length-1]?.id?.slice(1)|0)+1}`;
-  const nieuw   = { id: nieuwId, activiteitKey:null };
-  bord.kolommen = [...bord.kolommen, nieuw]; render();
-  try{ await bewaarBord({ kolommen: bord.kolommen }); }catch{}
-}
-async function kolomVerwijderen(kolId){
-  if(rol!=='leerkracht') return;
-  const kolommen = bord.kolommen.filter(k=>k.id!==kolId);
-  for(const r of bord.rijen){ if(bord.cellen?.[r]?.[kolId]) delete bord.cellen[r][kolId]; }
-  bord.kolommen = kolommen; render();
-  try{ await bewaarBord({ kolommen, cellen: bord.cellen }); }catch{}
-}
-
-function nextState(s){ return s==='leeg'?'bezig':(s==='bezig'?'klaar':'leeg'); }
-function cycleStatusOptimistic(rij, kolId){
-  const huidig = (bord.cellen?.[rij]?.[kolId]) || 'leeg';
-  setStatusOptimistic(rij, kolId, nextState(huidig));
-}
-async function setStatusOptimistic(rij, kolId, nieuw){
-  bord.cellen[rij] = bord.cellen[rij] || {};
-  bord.cellen[rij][kolId] = nieuw; render();
-  try{ await bewaarBord({ cellen: bord.cellen }); }catch{}
-}
-
-/* =============== PDF: meerdere pagina's + herhaalde kop =============== */
-/* Vereist: window.jspdf (jsPDF) en html2canvas zijn al ingeladen in contract_board.html */
-
+/* ======= PDF: kop op elke pagina + snijden op rijgrenzen + GEEN kleurvakjes ======= */
 btnPdf?.addEventListener('click', async ()=>{ await downloadContractbordPdf(); });
 
 async function downloadContractbordPdf(){
   try{
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('l','pt','a4');
-    const pageWidthPt  = pdf.internal.pageSize.getWidth();
-    const pageHeightPt = pdf.internal.pageSize.getHeight();
-    const marginTopPt  = 18; // kleine marge bovenaan
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const marginTop = 18, marginBottom = 18;
 
-    // 1) Maak aparte canvas van de HEADER (de twee kop-rijen samen)
-    //    We clonen de thead (of de twee rijen) in een tijdelijke container zodat html2canvas
-    //    een nette afbeelding kan maken.
-    const tempWrapper = document.createElement('div');
-    tempWrapper.style.position = 'fixed';
-    tempWrapper.style.left = '-99999px';
-    tempWrapper.style.top = '0';
-    const tempTable = tabelEl.cloneNode(false); // leeg skelet
-    const thead = tabelEl.querySelector('thead');
+    // *** NIEUW: kleurkeuzes tijdelijk verbergen voor PDF ***
+    const kleurBlocks = Array.from(document.querySelectorAll('.kleur-choices'));
+    const prevDisplays = kleurBlocks.map(el => el.style.display);
+    kleurBlocks.forEach(el => { el.style.display = 'none'; });
+
+    // Header (de 2 kop-rijen) renderen
+    const tmpWrap  = document.createElement('div');
+    tmpWrap.style.position='fixed'; tmpWrap.style.left='-99999px'; tmpWrap.style.top='0';
+    const tmpTable = tabelEl.cloneNode(false);
+    const realThead = tabelEl.querySelector('thead');
     let tmpThead;
-    if (thead) {
-      tmpThead = thead.cloneNode(true);
-    } else {
-      // Als er geen <thead> is, bouwen we er een en hangen de twee header <tr>'s daarin.
+    if (realThead) tmpThead = realThead.cloneNode(true);
+    else {
       tmpThead = document.createElement('thead');
-      if (headerRij) tmpThead.appendChild(headerRij.cloneNode(true));
+      if (headerRij)          tmpThead.appendChild(headerRij.cloneNode(true));
       if (headerAfbeeldingen) tmpThead.appendChild(headerAfbeeldingen.cloneNode(true));
     }
-    tempTable.appendChild(tmpThead);
-    tempWrapper.appendChild(tempTable);
-    document.body.appendChild(tempWrapper);
+    tmpTable.appendChild(tmpThead); tmpWrap.appendChild(tmpTable); document.body.appendChild(tmpWrap);
+    const headerCanvas = await html2canvas(tmpTable, { scale: 2, backgroundColor: '#FFFFFF' });
+    tmpWrap.remove();
 
-    const headerCanvas = await html2canvas(tempTable, { scale: 2, backgroundColor: '#FFFFFF' });
+    const headerRatio     = pageWidth / headerCanvas.width;
+    const headerHeightPt  = headerCanvas.height * headerRatio;
+    const usableBodyPt    = pageHeight - marginTop - headerHeightPt - marginBottom;
 
-    // Ruim de tijdelijke DOM op
-    tempWrapper.remove();
+    // Body zonder header canvas + rijgrenzen meten
+    let wasHidden=false, prevDisplay='';
+    const realThead2 = tabelEl.querySelector('thead');
+    if (realThead2){ prevDisplay=realThead2.style.display; realThead2.style.display='none'; wasHidden=true; }
+    else { if (headerRij) headerRij.style.display='none'; if (headerAfbeeldingen) headerAfbeeldingen.style.display='none'; wasHidden=true; }
 
-    // 2) Maak canvas van het BODY-gedeelte (zonder de kop).
-    //    We verbergen de kop tijdelijk, renderen de hele tabel (dan is het uitsluitend body),
-    //    en zetten daarna de kop terug zichtbaar.
-    const theadReal = tabelEl.querySelector('thead');
-    let prevDisplay = '';
-    if (theadReal) {
-      prevDisplay = theadReal.style.display;
-      theadReal.style.display = 'none';
-    } else {
-      // Als er geen thead is, verberg afzonderlijke rijen
-      if (headerRij) headerRij.style.display = 'none';
-      if (headerAfbeeldingen) headerAfbeeldingen.style.display = 'none';
-    }
+    const tableRect = tabelEl.getBoundingClientRect();
+    const rows = Array.from(bodyRijen.querySelectorAll('tr'));
+    const rowsTopCss = [], rowsBottomCss = [];
+    rows.forEach(tr=>{
+      const r = tr.getBoundingClientRect();
+      rowsTopCss.push(r.top - tableRect.top);
+      rowsBottomCss.push(r.bottom - tableRect.top);
+    });
 
     const bodyCanvas = await html2canvas(tabelEl, { scale: 2, backgroundColor: '#FFFFFF' });
 
-    // herstel zichtbaarheid
-    if (theadReal) {
-      theadReal.style.display = prevDisplay;
-    } else {
-      if (headerRij) headerRij.style.display = '';
-      if (headerAfbeeldingen) headerAfbeeldingen.style.display = '';
+    if (wasHidden){
+      if (realThead2) realThead2.style.display = prevDisplay;
+      else { if (headerRij) headerRij.style.display=''; if (headerAfbeeldingen) headerAfbeeldingen.style.display=''; }
     }
 
-    // 3) Schalen: we vullen de pagina-breedte; hoogte volgt verhouding
-    const bodyRatio = pageWidthPt / bodyCanvas.width;
-    const headerRatio = pageWidthPt / headerCanvas.width;
+    // *** HERSTEL kleurkeuzes in UI ***
+    kleurBlocks.forEach((el, i) => { el.style.display = prevDisplays[i]; });
 
-    const headerHeightPt = headerCanvas.height * headerRatio;
-    const usableBodyHeightPt = pageHeightPt - marginTopPt - headerHeightPt; // wat overblijft onder header
-    const bodySlicePxPerPage = Math.floor(usableBodyHeightPt / bodyRatio);  // hoeveel pixels uit bodyCanvas per pagina
+    const cssWidth = tableRect.width || tabelEl.offsetWidth || 1;
+    const scale    = bodyCanvas.width / cssWidth;
+    const rowsTopPx    = rowsTopCss.map(v => Math.round(v * scale));
+    const rowsBottomPx = rowsBottomCss.map(v => Math.round(v * scale));
 
-    // 4) Pagina’s opbouwen
-    let yPx = 0;
-    let pageIndex = 0;
+    const bodyRatio      = pageWidth / bodyCanvas.width;
+    const bodyPxPerPage  = Math.floor(usableBodyPt / bodyRatio);
 
-    while (yPx < bodyCanvas.height) {
+    let startRow = 0, pageIndex = 0;
+    while (startRow < rows.length) {
+      let endRow = startRow;
+      while (endRow < rows.length) {
+        const sliceTop    = rowsTopPx[startRow];
+        const sliceBottom = rowsBottomPx[endRow];
+        const sliceHeight = sliceBottom - sliceTop;
+        if (sliceHeight <= bodyPxPerPage) endRow++;
+        else break;
+      }
+      if (endRow === startRow) endRow = startRow + 1;
+
+      const sliceTopPx    = rowsTopPx[startRow];
+      const sliceBottomPx = rowsBottomPx[endRow-1];
+      const sliceHeightPx = sliceBottomPx - sliceTopPx;
+
       if (pageIndex > 0) pdf.addPage();
 
-      // teken header bovenaan elke pagina
-      pdf.addImage(
-        headerCanvas.toDataURL('image/png'),
-        'PNG',
-        0,
-        marginTopPt,
-        pageWidthPt,
-        headerHeightPt
-      );
+      pdf.addImage(headerCanvas.toDataURL('image/png'),'PNG',0,marginTop,pageWidth,headerHeightPt);
 
-      // snij een deel van de bodyCanvas uit
-      const sliceHeightPx = Math.min(bodySlicePxPerPage, bodyCanvas.height - yPx);
-      const sliceDataUrl = canvasSliceToPng(bodyCanvas, 0, yPx, bodyCanvas.width, sliceHeightPx);
+      const bodyStartPt = marginTop + headerHeightPt;
+      const sliceData   = canvasSliceToPng(bodyCanvas, 0, sliceTopPx, bodyCanvas.width, sliceHeightPx);
+      pdf.addImage(sliceData,'PNG',0,bodyStartPt,pageWidth,sliceHeightPx * bodyRatio);
 
-      // plaats deze slice onder de header
-      const sliceHeightPt = sliceHeightPx * bodyRatio;
-      const bodyStartPt = marginTopPt + headerHeightPt;
-
-      pdf.addImage(
-        sliceDataUrl,
-        'PNG',
-        0,
-        bodyStartPt,
-        pageWidthPt,
-        sliceHeightPt
-      );
-
-      yPx += sliceHeightPx;
-      pageIndex++;
+      pageIndex++; startRow = endRow;
     }
 
     pdf.save('contractbord.pdf');
-  } catch (err) {
-    console.error('PDF genereren mislukt:', err);
+  }catch(err){
+    console.error(err);
     alert('PDF genereren is mislukt. Probeer opnieuw.');
   }
 }
 
-// Hulpfunctie: snij een deel uit een canvas en geef PNG dataURL terug
 function canvasSliceToPng(sourceCanvas, sx, sy, sw, sh){
-  const c = document.createElement('canvas');
-  c.width = sw; c.height = sh;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0,0,c.width,c.height);
+  const c = document.createElement('canvas'); c.width = sw; c.height = sh;
+  const ctx = c.getContext('2d'); ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,c.width,c.height);
   ctx.drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
   return c.toDataURL('image/png');
 }
@@ -451,6 +426,7 @@ function voegKindSluitKnopToe(){
   document.body.appendChild(btn);
 }
 
+// Extra knoppen
 btnRijPlus?.addEventListener('click', ()=>{
   const max = Math.max(...bord.rijen, 0);
   bord.rijen = [...bord.rijen, max+1]; render();
@@ -468,4 +444,5 @@ btnReset?.addEventListener('click', async ()=>{
 });
 
 initAuth();
+
 
