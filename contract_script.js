@@ -25,8 +25,8 @@ const btnPdf             = document.getElementById('btnPdf');
 const btnReset           = document.getElementById('btnReset');
 const btnUitloggen       = document.getElementById('btnUitloggen');
 const btnToonQR          = document.getElementById('btnToonQR');
-const headerRij          = document.getElementById('headerRij');           // eerste koprij (selects)
-const headerAfbeeldingen = document.getElementById('headerAfbeeldingen');   // tweede koprij (icons)
+const headerRij          = document.getElementById('headerRij');
+const headerAfbeeldingen = document.getElementById('headerAfbeeldingen');
 const bodyRijen          = document.getElementById('bodyRijen');
 const tabelWrapper       = document.getElementById('tabelWrapper');
 const tabelEl            = tabelWrapper ? tabelWrapper.querySelector('table') : null;
@@ -48,7 +48,7 @@ const activiteiten = [
 const MAX_INIT_RIJ   = 25;
 const INIT_KOLOMMEN  = 6;
 
-let gebruikerId = null;      // UID leerkracht
+let gebruikerId = null;
 const bordDocId = "contractbord";
 let bord = { kolommen: [], rijen: [], cellen: {} };
 
@@ -66,10 +66,10 @@ function ensureMinimumStructure(){
     const start = bord.kolommen.length;
     for(let i=start;i<INIT_KOLOMMEN;i++){ bord.kolommen.push({id:`k${i+1}`, activiteitKey:null}); }
   }
-  if(!Array.isArray(bord.rijen) || bord.rijen.length < MAX_INIT_RIJ){
-    const s = new Set(bord.rijen || []);
-    for(let n=1;n<=MAX_INIT_RIJ;n++) s.add(n);
-    bord.rijen = Array.from(s).sort((a,b)=>a-b);
+  // GECORRIGEERD: Deze check zorgde ervoor dat verwijderde rijen meteen weer werden aangevuld.
+  // Nu wordt de rij-array enkel aangemaakt als hij nog niet bestaat.
+  if(!Array.isArray(bord.rijen)){
+    bord.rijen = Array.from({length:MAX_INIT_RIJ},(_,i)=>i+1);
   }
   if(!bord.cellen) bord.cellen = {};
 }
@@ -128,20 +128,19 @@ async function initAuth(){
     actiesLeerkracht?.insertBefore(kindBtn, btnUitloggen);
 
     onAuthStateChanged(auth, async (user)=>{
-      if(!user){ location.href = 'contract_index.html'; return; }
+      if(!user){ location.href = 'index.html'; return; }
       gebruikerId = user.uid;
       await laadOfMaakBord();
       render();
       kindBtn.onclick = ()=>window.open(`contract_board.html?rol=kind&lid=${gebruikerId}`, '_blank', 'noopener');
     });
 
-    btnUitloggen?.addEventListener('click', ()=>signOut(auth).then(()=>location.href='contract_index.html'));
+    btnUitloggen?.addEventListener('click', ()=>signOut(auth).then(()=>location.href='index.html'));
   } else {
-    // KINDMODUS
-    document.body.classList.add('kind-only-icons');         // <-- alleen pictogrammenkop
+    document.body.classList.add('kind-only-icons');
     await signInAnonymously(auth).catch(()=>{});
     gebruikerId = params.get('lid') || localStorage.getItem('contract_leerkracht_uid');
-    if(!gebruikerId){ location.href = 'contract_index.html'; return; }
+    if(!gebruikerId){ location.href = 'index.html'; return; }
     voegKindSluitKnopToe();
     await laadOfMaakBord(false);
     render();
@@ -197,7 +196,6 @@ function render(){
 
     headerRij.style.display = '';
   } else {
-    // kindmodus: verbergen
     headerRij.style.display = 'none';
   }
 
@@ -243,6 +241,29 @@ function render(){
     nr.textContent = r;
 
     wrap.append(foto, nr);
+
+    if (rol === 'leerkracht') {
+      const delBtn = document.createElement('button');
+      delBtn.className = 'rij-verwijder';
+      delBtn.textContent = '✕';
+      delBtn.title = `Rij ${r} verwijderen`;
+      delBtn.onclick = async () => {
+        if (confirm(`Weet je zeker dat je rij ${r} wilt verwijderen?`)) {
+          bord.rijen = bord.rijen.filter(rijNummer => rijNummer !== r);
+          if (bord.cellen && bord.cellen[r]) {
+            delete bord.cellen[r];
+          }
+          render();
+          try {
+            await bewaarBord({ rijen: bord.rijen, cellen: bord.cellen });
+          } catch(err) {
+            console.error("Fout bij opslaan na rij verwijderen:", err);
+          }
+        }
+      };
+      wrap.appendChild(delBtn);
+    }
+
     th.appendChild(wrap);
     tr.appendChild(th);
 
@@ -279,7 +300,6 @@ function maakKolomKop(kol){
     del.onclick = ()=>kolomVerwijderen(kol.id);
     th.appendChild(del);
   } else {
-    // kindmodus: geen controls
     th.appendChild(document.createElement('div')).style.height='38px';
   }
   return th;
@@ -302,7 +322,7 @@ function maakStatusCel(rij, kolId, status){
   return td;
 }
 
-/* ======= PDF: kop op elke pagina + snijden op rijgrenzen + GEEN kleurvakjes ======= */
+/* PDF */
 btnPdf?.addEventListener('click', async ()=>{ await downloadContractbordPdf(); });
 
 async function downloadContractbordPdf(){
@@ -313,12 +333,10 @@ async function downloadContractbordPdf(){
     const pageHeight = pdf.internal.pageSize.getHeight();
     const marginTop = 18, marginBottom = 18;
 
-    // Kleurkeuzes tijdelijk verbergen
     const kleurBlocks = Array.from(document.querySelectorAll('.kleur-choices'));
     const prevDisplays = kleurBlocks.map(el => el.style.display);
     kleurBlocks.forEach(el => { el.style.display = 'none'; });
 
-    // Header renderen — in kindmodus alleen afbeeldingenrij
     const tmpWrap  = document.createElement('div');
     tmpWrap.style.position='fixed'; tmpWrap.style.left='-99999px'; tmpWrap.style.top='0';
     const tmpTable = tabelEl.cloneNode(false);
@@ -337,7 +355,6 @@ async function downloadContractbordPdf(){
     const headerHeightPt  = headerCanvas.height * headerRatio;
     const usableBodyPt    = pageHeight - marginTop - headerHeightPt - marginBottom;
 
-    // Body zonder header (en met rijgrenzen)
     let wasHidden=false, prevDisplay='';
     const realThead = tabelEl.querySelector('thead');
     if (realThead){ prevDisplay=realThead.style.display; realThead.style.display='none'; wasHidden=true; }
@@ -359,7 +376,6 @@ async function downloadContractbordPdf(){
       else { if (headerRij) headerRij.style.display=''; if (headerAfbeeldingen) headerAfbeeldingen.style.display=''; }
     }
 
-    // Herstel kleurkeuzes
     kleurBlocks.forEach((el, i) => { el.style.display = prevDisplays[i]; });
 
     const cssWidth = tableRect.width || tabelEl.offsetWidth || 1;
@@ -423,7 +439,7 @@ btnToonQR?.addEventListener('click', ()=>{
 function voegKindSluitKnopToe(){
   const btn = document.createElement('button');
   btn.className = 'kind-exit'; btn.title='Sluiten';
-  btn.onclick = ()=>{ location.href = 'contract_index.html'; };
+  btn.onclick = ()=>{ location.href = 'index.html'; };
   document.body.appendChild(btn);
 }
 
@@ -446,5 +462,4 @@ btnReset?.addEventListener('click', async ()=>{
 
 /* Start */
 initAuth();
-
 
