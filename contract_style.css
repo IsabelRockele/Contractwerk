@@ -2,8 +2,8 @@
 :root{
   --bg:#f6f6f6; --kaart:#ffffff; --rand:#d9d9d9; --prim:#2F6FEB;
   --ok:#2e7d32; --ok-soft:#66bb6a; --bezig:#ff9800; --tekst:#222; --sticky:#f0f4fa;
-  --row1-h: 64px;   /* bovenste koprij (selects) */
-  --row2-h: 104px;  /* pictogrammenrij */
+  --row1-h: 64px;
+  --row2-h: 104px;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -26,8 +26,7 @@ h1,h2,h3{margin:.6rem 0}
   border-bottom:1px solid var(--rand)
 }
 .titelvak{display:flex;align-items:center;gap:1rem}
-.titel-plek{width:140px;height:72px;border:2px dashed var(--rand);border-radius:12px;background:#fafafa}
-.bord-info span{display:block;font-weight:700;font-size:1.1rem}
+.bord-info span{display:block;font-weight:700;font-size:1.4rem}
 .acties button{margin-left:.5rem}
 
 button{
@@ -77,7 +76,7 @@ button.sec{background:#f3f3f3}
 .foutmelding{color:#c0392b;margin-top:.6rem}
 
 /* ==== Tabel + scroll ==== */
-#tabelWrapper{overflow:auto;max-height:calc(100vh - 150px);padding:0 .75rem 1.25rem}
+#tabelWrapper{overflow:auto;max-height:calc(100vh - 88px);padding:0 .75rem 1.25rem}
 table{border-collapse:separate;border-spacing:0;background:var(--kaart);min-width:1024px}
 th,td{border:1px solid var(--rand);padding:.7rem;text-align:center;min-width:140px;font-size:1rem}
 .cel-label{min-width:120px;width:120px}
@@ -104,9 +103,15 @@ thead th.sticky-left{z-index:8}
 .kolom-afb{width:76px;height:76px;object-fit:contain;background:#f7f9fc;border-radius:12px}
 
 /* Rijlabel met leerlingfoto + nummer */
-.leerling-label{display:flex;flex-direction:column;align-items:center;gap:.45rem;padding:.3rem}
-.leerling-foto{width:62px;height:62px;object-fit:cover;border-radius:50%;border:2px solid #d0d0d0;background:#fff}
-.leerling-nummer{font-weight:700;font-size:1.05rem}
+.leerling-label{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:.6rem;padding:.3rem}
+.leerling-foto{
+  width:48px;
+  height:48px;
+  object-fit:contain;
+  background:transparent;
+}
+.leerling-nummer{font-weight:700;font-size:1.15rem}
+
 
 /* Statuscellen */
 .status-cel{height:128px;padding:.45rem .6rem}
@@ -154,6 +159,26 @@ body.kind-only-icons .sticky-top-2{ top:0; }
   .kolom-afb{width:64px;height:64px}
   .bolletje{width:54px;height:54px}
   .kleur-btn{width:34px;height:24px}
-  .leerling-foto{width:56px;height:56px}
+  .leerling-foto{width:40px;height:40px}
+}
+
+/* Stijl voor de rij-verwijder knop */
+.rij-verwijder {
+  background: #fbe9e7;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  margin-left: 8px; /* Zorgt voor ruimte naast het nummer */
+}
+
+.rij-verwijder:hover {
+  background: #ffcdd2;
+  border-color: #ef9a9a;
 }
 
