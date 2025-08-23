@@ -32,18 +32,17 @@ const tabelWrapper       = document.getElementById('tabelWrapper');
 const tabelEl            = tabelWrapper ? tabelWrapper.querySelector('table') : null;
 
 const activiteiten = [
-  { key: null,        label: "—" },
-  { key: "rekenen",   label: "Rekenen" },
-  { key: "taal",      label: "Taal" },
-  { key: "lezen",     label: "Lezen" },
-  { key: "knutselen", label: "Knutselen" },
-  { key: "meten",     label: "Meten" },
-  { key: "kloklezen", label: "Kloklezen" },
-  { key: "schrijven", label: "Schrijven" },
-  { key: "tekenen",   label: "Tekenen" },
-  { key: "bouwen",    label: "Bouwen" },
-  { key: "muziek",    label: "Muziek" }
+  { key: null,          label: "—" },
+  { key: "bouwhoek",     label: "Bouwhoek" },
+  { key: "creahoek",     label: "Creahoek" },
+  { key: "meethoek",     label: "Meethoek" },
+  { key: "motoriekhoek", label: "Motoriekhoek" },
+  { key: "rekenhoek",    label: "Rekenhoek" },
+  { key: "schrijfhoek",  label: "Schrijfhoek" },
+  { key: "taalhoek",     label: "Taalhoek" },
+  { key: "WO_hoek",      label: "WO-hoek" }
 ];
+
 
 const MAX_INIT_RIJ   = 25;
 const INIT_KOLOMMEN  = 6;
