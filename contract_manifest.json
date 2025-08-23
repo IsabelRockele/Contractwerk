@@ -1,6 +1,6 @@
 {
   "id": "/Contractwerk/",
-  "short_name": "Bibi bord",
+  "short_name": "Bibi Bord",
   "name": "Bibi contractbord",
   "icons": [
     { "src": "/Contractwerk/app_icons/bibi_contractbord_192.png", "sizes": "192x192", "type": "image/png" },
@@ -12,4 +12,5 @@
   "background_color": "#f6f6f6",
   "theme_color": "#4A90E2"
 }
+
 
