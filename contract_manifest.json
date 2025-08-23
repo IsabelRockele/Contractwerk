@@ -5,8 +5,8 @@
     { "src": "app_icons/bibi_contractbord_192.png", "type": "image/png", "sizes": "192x192" },
     { "src": "app_icons/bibi_contractbord_512.png", "type": "image/png", "sizes": "512x512" }
   ],
-  "start_url": "./index.html",
-  "scope": "./",
+  "start_url": "/<jouw-repo>/index.html",
+  "scope": "/<jouw-repo>/",
   "display": "standalone",
   "background_color": "#f6f6f6",
   "theme_color": "#4A90E2"
