@@ -1,13 +1,15 @@
 {
+  "id": "/Contractwerk/",
   "short_name": "Bibi bord",
   "name": "Bibi contractbord",
   "icons": [
-    { "src": "app_icons/bibi_contractbord_192.png", "type": "image/png", "sizes": "192x192" },
-    { "src": "app_icons/bibi_contractbord_512.png", "type": "image/png", "sizes": "512x512" }
+    { "src": "/Contractwerk/app_icons/bibi_contractbord_192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/Contractwerk/app_icons/bibi_contractbord_512.png", "sizes": "512x512", "type": "image/png" }
   ],
-  "start_url": "/<jouw-repo>/index.html",
-  "scope": "/<jouw-repo>/",
+  "start_url": "/Contractwerk/index.html",
+  "scope": "/Contractwerk/",
   "display": "standalone",
   "background_color": "#f6f6f6",
   "theme_color": "#4A90E2"
 }
+
