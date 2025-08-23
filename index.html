@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Contractbord – Start</title>
+  <title>Bibi Contractbord – Start</title>
 
   <!-- Vormgeving -->
   <link rel="stylesheet" href="contract_style.css">
 
-  <!-- PWA (optioneel, laat staan als u dit gebruikt) -->
+  <!-- PWA -->
   <link rel="manifest" href="contract_manifest.json">
-  <link rel="icon" href="pictogram-192x192.png" sizes="192x192">
-  <link rel="apple-touch-icon" href="pictogram-512x512.png">
+  <link rel="icon" href="app_icons/bibi_contractbord_192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="app_icons/bibi_contractbord_512.png">
 </head>
 <body class="startscherm">
 
@@ -165,16 +165,13 @@
     const kindAnnuleerBtn  = document.getElementById('kindAnnuleer');
     const leerkrachtUidEl  = document.getElementById('leerkrachtUid');
 
-    // Prefill e-mail indien onthouden
     const savedEmail = localStorage.getItem('contract_leerkracht_email');
     if (savedEmail) emailEl.value = savedEmail;
 
-    // Status van login voor "Open bord"
     onAuthStateChanged(auth, (user) => {
       gaNaarBordBtn.disabled = !user;
     });
 
-    // Navigatie rol → login
     btnNaarLeerkracht.addEventListener('click', () => {
       rolKeuze.classList.add('verborgen');
       leerkrachtRegister.classList.add('verborgen');
@@ -186,7 +183,6 @@
       rolKeuze.classList.remove('verborgen');
     });
 
-    // Login
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       loginFout.hidden = true;
@@ -204,7 +200,6 @@
       }
     });
 
-    // Registratie tonen
     toonRegLink.addEventListener('click', () => {
       leerkrachtLogin.classList.add('verborgen');
       leerkrachtRegister.classList.remove('verborgen');
@@ -220,7 +215,6 @@
       setTimeout(()=>emailEl.focus(), 50);
     });
 
-    // Registreren
     registerForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       regFout.hidden = true;
@@ -229,7 +223,6 @@
         const email = regEmailEl.value.trim();
         const pass  = regPassEl.value;
         await createUserWithEmailAndPassword(auth, email, pass);
-        // Klaar: meteen naar bord
         location.href = 'contract_board.html?rol=leerkracht';
       } catch (err) {
         regFout.textContent = netteAuthFout(err);
@@ -237,12 +230,10 @@
       }
     });
 
-    // Open bord (als je al ingelogd bent)
     gaNaarBordBtn.addEventListener('click', () => {
       location.href = 'contract_board.html?rol=leerkracht';
     });
 
-    // Kindmodus: anoniem + QR of manueel UID
     btnNaarKind.addEventListener('click', async () => {
       try { await signInAnonymously(auth); } catch {}
       const viaQr = new URLSearchParams(location.search).get('lid');
@@ -263,12 +254,6 @@
       location.href = `contract_board.html?rol=kind&lid=${encodeURIComponent(lid)}`;
     });
 
-    // Service worker (optioneel)
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(()=>{});
-    }
-
-    // Vriendelijke foutteksten
     function netteAuthFout(err){
       const code = (err && err.code) ? String(err.code) : '';
       switch (code) {
@@ -282,8 +267,16 @@
       }
     }
   </script>
+
+  <!-- Service worker met vaste scope -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js', { scope: '/Contractwerk/' }).catch(()=>{});
+    }
+  </script>
 </body>
 </html>
+
 
 
 
