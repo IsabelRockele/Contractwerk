@@ -277,6 +277,7 @@ async function bewaarBord(patch){
   try{ await updateDoc(getBordRef(), patch); }
   catch{ await setDoc(getBordRef(), bord, {merge:true}); }
 }
+window.bewaarBord = bewaarBord;
 
 /* =================== Rendering =================== */
 function render(){
