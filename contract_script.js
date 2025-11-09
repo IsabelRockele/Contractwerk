@@ -124,6 +124,44 @@ function applyDefaultBoard(){
   bord.rijen    = Array.from({length:MAX_INIT_RIJ},(_,i)=>i+1);
   bord.cellen   = {};
 }
+function normalizeKolommenEnCellen() {
+  if (!Array.isArray(bord.kolommen)) return;
+
+  const idMap = {};
+  const seen  = new Set();
+
+  // Zorg voor unieke kolom-id's en bouw een map van oude -> nieuwe id's
+  bord.kolommen.forEach((kol, index) => {
+    const oldId = kol.id || `k${index + 1}`;
+    let newId   = oldId;
+
+    if (!newId || seen.has(newId)) {
+      newId = `k${index + 1}`;
+    }
+
+    kol.id = newId;
+    idMap[oldId] = newId;
+    seen.add(newId);
+  });
+
+  // Herschrijf bord.cellen zodat alles naar de nieuwe id's verwijst
+  if (bord.cellen && typeof bord.cellen === 'object') {
+    const nieuweCellen = {};
+
+    for (const [rij, kolObj] of Object.entries(bord.cellen)) {
+      const nieuweKolObj = {};
+      if (kolObj && typeof kolObj === 'object') {
+        for (const [kolId, waarde] of Object.entries(kolObj)) {
+          const mappedId = idMap[kolId] || kolId;
+          nieuweKolObj[mappedId] = waarde;
+        }
+      }
+      nieuweCellen[rij] = nieuweKolObj;
+    }
+
+    bord.cellen = nieuweCellen;
+  }
+}
 
 /* =================== Helpers zichtbare kolommen =================== */
 function getVisibleKolommen(){
@@ -213,18 +251,27 @@ async function laadOfMaakBord(magAanmaken=true){
   try{
     const ref = getBordRef(); const snap = await getDoc(ref);
     if(snap.exists()){
-      bord = snap.data(); ensureMinimumStructure();
+      bord = snap.data();
+      ensureMinimumStructure();
+      normalizeKolommenEnCellen();
       await setDoc(ref, bord, {merge:true});
     } else if(magAanmaken){
-      applyDefaultBoard(); ensureMinimumStructure();
+      applyDefaultBoard();
+      ensureMinimumStructure();
+      normalizeKolommenEnCellen();
       await setDoc(ref, bord);
     } else {
-      applyDefaultBoard(); ensureMinimumStructure();
+      applyDefaultBoard();
+      ensureMinimumStructure();
+      normalizeKolommenEnCellen();
     }
   }catch{
-    applyDefaultBoard(); ensureMinimumStructure();
+    applyDefaultBoard();
+    ensureMinimumStructure();
+    normalizeKolommenEnCellen();
   }
 }
+
 async function bewaarBord(patch){
   Object.assign(bord, patch);
   try{ await updateDoc(getBordRef(), patch); }
@@ -234,7 +281,7 @@ async function bewaarBord(patch){
 /* =================== Rendering =================== */
 function render(){
   ensureMinimumStructure();
-    ensureUniqueKolomIds();
+  normalizeKolommenEnCellen();
   const kolommenZichtbaar = getVisibleKolommen();
 
   // KOP rij 1 (selects) — enkel voor leerkracht
