@@ -233,6 +233,7 @@ async function bewaarBord(patch){
 /* =================== Rendering =================== */
 function render(){
   ensureMinimumStructure();
+    ensureUniqueKolomIds();
   const kolommenZichtbaar = getVisibleKolommen();
 
   // KOP rij 1 (selects) — enkel voor leerkracht
@@ -610,6 +611,16 @@ btnReset?.addEventListener('click', async ()=>{
   }}
   render(); try{ await bewaarBord({ cellen: bord.cellen }); }catch{}
 });
+
+function ensureUniqueKolomIds() {
+  const seen = new Set();
+  bord.kolommen.forEach((k, i) => {
+    if (!k.id || seen.has(k.id)) {
+      k.id = `k${i + 1}`;
+    }
+    seen.add(k.id);
+  });
+}
 
 /* =================== Start =================== */
 initAuth();
