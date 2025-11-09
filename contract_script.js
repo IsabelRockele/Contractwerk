@@ -350,6 +350,7 @@ function render(){
     frag.appendChild(maakRijElement(r, kolommenZichtbaar));
   }
   bodyRijen.appendChild(frag);
+  window.render = render;
 }
 
 function maakRijElement(r, kolommenZichtbaar){
