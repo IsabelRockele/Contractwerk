@@ -43,7 +43,8 @@ const activiteiten = [
   { key: "rekenhoek",    label: "Rekenhoek" },
   { key: "schrijfhoek",  label: "Schrijfhoek" },
   { key: "taalhoek",     label: "Taalhoek" },
-  { key: "WO_hoek",      label: "WO-hoek" }
+  { key: "WO_hoek",      label: "WO-hoek" },
+  { key: "concentratiehoek",      label: "Concentratiehoek" }
 ];
 
 /* =================== Basisinstellingen =================== */
