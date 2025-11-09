@@ -282,6 +282,7 @@ async function bewaarBord(patch){
 function render(){
   ensureMinimumStructure();
   normalizeKolommenEnCellen();
+  window.bord = bord;
   const kolommenZichtbaar = getVisibleKolommen();
 
   // KOP rij 1 (selects) — enkel voor leerkracht
